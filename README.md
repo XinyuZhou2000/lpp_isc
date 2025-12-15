@@ -1,8 +1,5 @@
-# lpp_isc_top_bottom
+# lpp_isc_top_bottom (Group-wise ISC Calculation)
 
-## Group-wise ISC Calculation
-
----
 
 ### Modes
 
@@ -21,3 +18,18 @@
 ```bash
 python unified_isc.py --mode random --lang EN --n_iter 30
 python unified_isc.py --mode topbottom --lang EN --n_iter 30
+```
+
+---
+
+
+### Result
+
+<p align="center">
+  <img src="lpp_isc_top_bottom/english.png" width="70%">
+</p>
+
+<p align="center">
+  <img src="lpp_isc_top_bottom/chinese.png" width="70%">
+</p>
+
