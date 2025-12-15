@@ -26,10 +26,10 @@ python unified_isc.py --mode topbottom --lang EN --n_iter 30
 ### Result
 
 <p align="center">
-  <img src="lpp_isc_top_bottom/english.png" width="70%">
+  <img src="fig/chinese.png" width="70%">
 </p>
 
 <p align="center">
-  <img src="lpp_isc_top_bottom/chinese.png" width="70%">
+  <img src="fig/english.png" width="70%">
 </p>
 
