@@ -50,38 +50,10 @@ Test whether **listener proficiency** affects neural synchrony.
   - ISC is computed
   - Repeated across iterations
 
----
-
-## How ISC is computed (step-by-step)
-
-For each iteration:
-
-1. **Shuffle subjects**
-2. **Split into two halves**
-3. For each of the 9 runs:
-   - Load fMRI data
-   - Apply spatial mask and preprocessing
-   - Average signals within each half
-   - Compute voxel-wise Pearson correlation
-4. **Average correlations across runs**
-
-Final output:
-- One ISC vector per iteration  
-- One value per voxel  
 
 ---
 
-## Parameters
 
-| Parameter | Meaning |
-|---------|--------|
-| `N_LIST` | Group sizes (n); total subjects = 2n |
-| `RUNS` | Number of runs per subject (default: 9) |
-| `n_iter` | Resampling iterations per n |
-| `seed` | Random seed for reproducibility |
-| `lang` | Language (`EN` or `CN`) |
-
----
 
 ## Usage
 
