@@ -12,8 +12,8 @@ Modes:
    - Iterations perform random split-half shuffles on these fixed groups.
 
 Usage:
-   python unified_isc.py --mode random --lang EN --n_iter 30
-   python unified_isc.py --mode topbottom --lang EN --n_iter 30
+   python isc_en_cn_topbottom.py --mode random --lang EN --n_iter 30
+   python isc_en_cn_topbottom.py --mode topbottom --lang EN --n_iter 30
 """
 
 import os
@@ -30,13 +30,20 @@ from nilearn.maskers import NiftiMasker
 DATA_ROOT       = '/shared/xinyu/llms_brain_lateralization' 
 MASK_EN         = '/shared/data/lpp_average/mask_lpp_en.nii.gz'
 MASK_CN         = '/shared/data/lpp_average/mask_lpp_cn.nii.gz'
+MASK_FR         = '/shared/data/lpp_average/mask_lpp_fr.nii.gz'
 PARTICIPANT_TSV = '/shared/data/lpp-fmri/ds003643/participants.tsv'
 OUTPUT_DIR      = '/shared/xinyu/tmp_isc'
 CACHE_DIR       = '/shared/xinyu/tmp_isc/cachedir'
 
 LANG_DIRS = {
     "EN": "lpp_en_resampled",
-    "CN": "lpp_cn_resampled"
+    "CN": "lpp_cn_resampled",
+    "FR": "lpp_fr_resampled"
+}
+LANG_MASKS = {
+    "EN": MASK_EN,
+    "CN": MASK_CN,
+    "FR": MASK_FR,
 }
 
 RUNS   = 9
@@ -63,7 +70,7 @@ def get_data_path(lang, sub, run):
                         label, f'{label}_run{run+1}.nii.gz')
 
 @memory.cache(ignore=['masker'])
-def load_and_preproc(lang, sub, run, masker):
+def load_and_preproc(lang, sub, run, masker, mask_tag):
     """Load Nifti file and apply masker (cached)."""
     fp = get_data_path(lang, sub, run)
     if not os.path.exists(fp):
@@ -71,9 +78,9 @@ def load_and_preproc(lang, sub, run, masker):
     # Remove first and last 10 TRs
     return masker.transform(fp)[10:-10]
 
-def compute_run_average(lang, subs, run, masker):
+def compute_run_average(lang, subs, run, masker, mask_tag):
     """Load data for a group of subjects and average them for a specific run."""
-    stack = [load_and_preproc(lang, s, run, masker) for s in subs]
+    stack = [load_and_preproc(lang, s, run, masker, mask_tag) for s in subs]
     stack = [x for x in stack if x is not None]
     if not stack:
         raise ValueError(f"Missing data for run {run+1}")
@@ -88,7 +95,7 @@ def voxelwise_corr(a, b):
     r[np.isnan(r)] = 0.0
     return r
 
-def groupwise_isc_once(lang, subs, masker):
+def groupwise_isc_once(lang, subs, masker, mask_tag):
     """
     Core calculation:
     1. Shuffle subjects
@@ -103,8 +110,8 @@ def groupwise_isc_once(lang, subs, masker):
     
     corrs = []
     for r in range(RUNS):
-        d1 = compute_run_average(lang, subs[:mid], r, masker)
-        d2 = compute_run_average(lang, subs[mid:], r, masker)
+        d1 = compute_run_average(lang, subs[:mid], r, masker, mask_tag)
+        d2 = compute_run_average(lang, subs[mid:], r, masker, mask_tag)
         corrs.append(voxelwise_corr(d1, d2))
     
     return {'ids': subs, 'isc': np.mean(corrs, axis=0)}
@@ -133,8 +140,8 @@ def main():
                         help="Execution mode: 'random' sampling or 'topbottom' ranking")
     parser.add_argument('--seed', type=int, default=1, help='Global RNG seed')
     parser.add_argument('--n_iter', type=int, default=30, help='Iterations per n')
-    parser.add_argument('--lang', type=str, default='EN', choices=['EN', 'CN'], 
-                        help='Language (EN or CN)')
+    parser.add_argument('--lang', type=str, default='EN', choices=['EN', 'CN', 'FR'],
+                        help='Language (EN/CN/FR)')
     args = parser.parse_args()
 
     # Set seeds
@@ -143,8 +150,12 @@ def main():
 
     print(f"--- Starting: Mode={args.mode}, Lang={args.lang}, Seed={args.seed} ---")
 
-    # Initialize Masker
-    mask_img = MASK_EN if args.lang == 'EN' else MASK_CN
+    # Initialize language-specific masker
+    mask_img = LANG_MASKS[args.lang]
+    if not os.path.exists(mask_img):
+        raise FileNotFoundError(f"Mask not found for {args.lang}: {mask_img}")
+    # cache key marker to prevent stale cache reuse when mask changes
+    mask_tag = os.path.basename(mask_img)
     masker = NiftiMasker(mask_img=mask_img, smoothing_fwhm=8,
                          detrend=True, standardize=True,
                          low_pass=0.2, high_pass=0.01,
@@ -174,7 +185,7 @@ def main():
             def one_iter_random(_):
                 # Critical: Sample NEW subjects for every iteration
                 pool = random.sample(avail_list, need)
-                return groupwise_isc_once(args.lang, pool, masker)
+                return groupwise_isc_once(args.lang, pool, masker, mask_tag)
 
             results[n] = Parallel(n_jobs=-1)(
                 delayed(one_iter_random)(i) for i in range(args.n_iter)
@@ -203,7 +214,7 @@ def main():
 
             def one_iter_fixed(pool):
                 # Pool is fixed, just reshuffling inside groupwise_isc_once
-                return groupwise_isc_once(args.lang, pool, masker)
+                return groupwise_isc_once(args.lang, pool, masker, mask_tag)
 
             # Parallel execution for Top
             results['top'][n] = Parallel(n_jobs=-1)(
